@@ -374,12 +374,10 @@ buildIOSsim()
 	ARCH=$1
 	BITCODE=$2
 
-	BUILD="x86_64-apple-darwin"
-	BUILD_MACHINE=`uname -m`
-
-	if [ ${BUILD_MACHINE} == 'arm64' ]; then
+	BUILD_ARCH=`uname -m`
+	if [ ${BUILD_ARCH} == 'arm64' ]; then
 		# Apple ARM Silicon Build Machine Detected - native build
-		BUILD="aarch64-apple-darwin"
+		BUILD_ARCH="aarch64"
 	fi
 
 	pushd . > /dev/null
@@ -413,9 +411,13 @@ buildIOSsim()
    
 	echo -e "${subbold}Building ${NGHTTP2_VERSION} for ${PLATFORM} ${IOS_SDK_VERSION} ${archbold}${ARCH}${dim} (iOS ${IOS_MIN_SDK_VERSION})"
 	if [[ "${ARCH}" == "arm64" || "${ARCH}" == "arm64e"  ]]; then
-		./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/iOS-simulator/${ARCH}" --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-iOS-${ARCH}-${BITCODE}.log"
+		./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/iOS-simulator/${ARCH}" --build="${BUILD_ARCH}-apple-darwin" --host="arm-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-iOS-${ARCH}-${BITCODE}.log"
 	else
-		./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/iOS-simulator/${ARCH}" --build=${BUILD} --host="${ARCH}-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-iOS-${ARCH}-${BITCODE}.log"
+		if [[ $ARCH != ${BUILD_ARCH} ]]; then
+			./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/iOS-simulator/${ARCH}" --build="${BUILD_ARCH}-apple-darwin" --host="${ARCH}-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-iOS-${ARCH}-${BITCODE}.log"
+		else
+			./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/iOS-simulator/${ARCH}" --host="${ARCH}-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-iOS-${ARCH}-${BITCODE}.log"
+		fi
 	fi
 
 	make -j8 >> "/tmp/${NGHTTP2_VERSION}-iOS-${ARCH}-${BITCODE}.log" 2>&1
@@ -493,12 +495,10 @@ buildTVOSsim()
 {
 	ARCH=$1
 
-	BUILD="x86_64-apple-darwin"
-	BUILD_MACHINE=`uname -m`
-
-	if [ ${BUILD_MACHINE} == 'arm64' ]; then
+	BUILD_ARCH=`uname -m`
+	if [ ${BUILD_ARCH} == 'arm64' ]; then
 		# Apple ARM Silicon Build Machine Detected - native build
-		BUILD="aarch64-apple-darwin"
+		BUILD_ARCH="aarch64"
 	fi
 
 	pushd . > /dev/null
@@ -527,9 +527,13 @@ buildTVOSsim()
 	# chmod u+x ./Configure
 
 	if [[ "${ARCH}" == "arm64" ]]; then
-		./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/tvOS-simulator/${ARCH}" --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-tvOS-simulator${ARCH}.log"
+		./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/tvOS-simulator/${ARCH}" --build="${BUILD_ARCH}-apple-darwin" --host="arm-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-tvOS-simulator${ARCH}.log"
 	else
-		./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/tvOS-simulator/${ARCH}" --build=${BUILD} --host="${ARCH}-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-tvOS-simulator${ARCH}.log"
+		if [[ $ARCH != ${BUILD_ARCH} ]]; then
+			./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/tvOS-simulator/${ARCH}" --build="${BUILD_ARCH}-apple-darwin" --host="${ARCH}-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-tvOS-simulator${ARCH}.log"
+		else
+			./configure --disable-shared --disable-app --disable-threads --enable-lib-only --prefix="${NGHTTP2}/tvOS-simulator/${ARCH}" --host="${ARCH}-apple-darwin" &> "/tmp/${NGHTTP2_VERSION}-tvOS-simulator${ARCH}.log"
+		fi
 	fi
 
 	LANG=C sed -i -- 's/define HAVE_FORK 1/define HAVE_FORK 0/' "config.h"
