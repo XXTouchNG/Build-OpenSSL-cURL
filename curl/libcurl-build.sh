@@ -183,6 +183,7 @@ fi
 buildMac()
 {
 	ARCH=$1
+	BUILD="x86_64-apple-darwin"
 	HOST="x86_64-apple-darwin"
 
 	if [ $nohttp2 == "1" ]; then
@@ -201,6 +202,7 @@ buildMac()
 		MACOS_VER="${MACOS_X86_64_VERSION}"
 		if [ ${BUILD_MACHINE} == 'arm64' ]; then
    			# Apple ARM Silicon Build Machine Detected - cross compile
+			BUILD="aarch64-apple-darwin"
 			export CC="clang"
 			export CXX="clang"
 			export CFLAGS=" -mmacosx-version-min=${MACOS_X86_64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 -fembed-bitcode "
@@ -213,9 +215,11 @@ buildMac()
 	fi
 	if [[ $ARCH == "arm64" ]]; then
 		TARGET="darwin64-arm64-cc"
+		HOST="aarch64-apple-darwin"
 		MACOS_VER="${MACOS_ARM64_VERSION}"
 		if [ ${BUILD_MACHINE} == 'arm64' ]; then
    			# Apple ARM Silicon Build Machine Detected - native build
+			BUILD="aarch64-apple-darwin"
 			export CC="${DEVELOPER}/usr/bin/gcc"
 			export CFLAGS=" -mmacosx-version-min=${MACOS_ARM64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 -fembed-bitcode "
 		else
@@ -233,7 +237,7 @@ buildMac()
 
 	pushd . > /dev/null
 	cd "${CURL_VERSION}"
-	./configure -prefix="/tmp/${CURL_VERSION}-${ARCH}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/Mac ${NGHTTP2CFG} --host=${HOST} &> "/tmp/${CURL_VERSION}-${ARCH}.log"
+	./configure -prefix="/tmp/${CURL_VERSION}-${ARCH}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/Mac ${NGHTTP2CFG} --build=${BUILD} --host=${HOST} &> "/tmp/${CURL_VERSION}-${ARCH}.log"
 
 	make -j${CORES} >> "/tmp/${CURL_VERSION}-${ARCH}.log" 2>&1
 	make install >> "/tmp/${CURL_VERSION}-${ARCH}.log" 2>&1
@@ -260,7 +264,13 @@ buildCatalyst()
 
 	PLATFORM="MacOSX"
 	TARGET="${ARCH}-apple-ios${CATALYST_IOS}-macabi"
+	BUILD="x86_64-apple-darwin"
 	BUILD_MACHINE=`uname -m`
+
+	if [ ${BUILD_MACHINE} == 'arm64' ]; then
+		# Apple ARM Silicon Build Machine Detected - native build
+		BUILD="aarch64-apple-darwin"
+	fi
 
 	if [[ "${BITCODE}" == "nobitcode" ]]; then
 		CC_BITCODE_FLAG=""
@@ -283,9 +293,9 @@ buildCatalyst()
 	echo -e "${subbold}Building ${CURL_VERSION} for ${archbold}${ARCH}${dim} ${BITCODE} (Mac Catalyst iOS ${CATALYST_IOS})"
 
 	if [[ "${ARCH}" == "arm64" ]]; then
-		./configure -prefix="/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/catalyst ${NGHTTP2CFG} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/catalyst ${NGHTTP2CFG} --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log"
 	else
-		./configure -prefix="/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/catalyst ${NGHTTP2CFG} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/catalyst ${NGHTTP2CFG} --build=${BUILD} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log"
 	fi
 	
 	make -j${CORES} >> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log" 2>&1
@@ -299,6 +309,14 @@ buildIOS()
 {
 	ARCH=$1
 	BITCODE=$2
+
+	BUILD="x86_64-apple-darwin"
+	BUILD_MACHINE=`uname -m`
+
+	if [ ${BUILD_MACHINE} == 'arm64' ]; then
+		# Apple ARM Silicon Build Machine Detected - native build
+		BUILD="aarch64-apple-darwin"
+	fi
 
 	pushd . > /dev/null
 	cd "${CURL_VERSION}"
@@ -328,9 +346,9 @@ buildIOS()
 	export LDFLAGS="-arch ${ARCH} -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -L${OPENSSL}/${PLATFORMDIR}/lib ${NGHTTP2LIB}"
 
 	if [[ "${ARCH}" == *"arm64"* || "${ARCH}" == "arm64e" ]]; then
-		./configure -prefix="/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/${PLATFORMDIR} ${NGHTTP2CFG} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/${PLATFORMDIR} ${NGHTTP2CFG} --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log"
 	else
-		./configure -prefix="/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/${PLATFORMDIR} ${NGHTTP2CFG} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/${PLATFORMDIR} ${NGHTTP2CFG} --build=${BUILD} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log"
 	fi
 
 	make -j${CORES} >> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log" 2>&1
@@ -343,6 +361,14 @@ buildIOSsim()
 {
 	ARCH=$1
 	BITCODE=$2
+
+	BUILD="x86_64-apple-darwin"
+	BUILD_MACHINE=`uname -m`
+
+	if [ ${BUILD_MACHINE} == 'arm64' ]; then
+		# Apple ARM Silicon Build Machine Detected - native build
+		BUILD="aarch64-apple-darwin"
+	fi
 
 	pushd . > /dev/null
 	cd "${CURL_VERSION}"
@@ -382,9 +408,9 @@ buildIOSsim()
 	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${IOS_SDK_VERSION} ${archbold}${ARCH}${dim} ${BITCODE} (iOS ${IOS_MIN_SDK_VERSION})"
 
 	if [[ "${ARCH}" == *"arm64"* || "${ARCH}" == "arm64e" ]]; then
-		./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/${PLATFORMDIR} ${NGHTTP2CFG} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/${PLATFORMDIR} ${NGHTTP2CFG} --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log"
 	else
-		./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/${PLATFORMDIR} ${NGHTTP2CFG} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}" --disable-shared --enable-static -with-random=/dev/urandom --with-ssl=${OPENSSL}/${PLATFORMDIR} ${NGHTTP2CFG} --build=${BUILD} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log"
 	fi
 
 	make -j${CORES} >> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log" 2>&1
@@ -396,6 +422,14 @@ buildIOSsim()
 buildTVOS()
 {
 	ARCH=$1
+
+	BUILD="x86_64-apple-darwin"
+	BUILD_MACHINE=`uname -m`
+
+	if [ ${BUILD_MACHINE} == 'arm64' ]; then
+		# Apple ARM Silicon Build Machine Detected - native build
+		BUILD="aarch64-apple-darwin"
+	fi
 
 	pushd . > /dev/null
 	cd "${CURL_VERSION}"
@@ -421,7 +455,7 @@ buildTVOS()
 
 	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${TVOS_SDK_VERSION} ${archbold}${ARCH}${dim} (tvOS ${TVOS_MIN_SDK_VERSION})"
 
-	./configure -prefix="/tmp/${CURL_VERSION}-tvOS-${ARCH}" --host="arm-apple-darwin" --disable-shared -with-random=/dev/urandom --disable-ntlm-wb --with-ssl="${OPENSSL}/tvOS" ${NGHTTP2CFG} &> "/tmp/${CURL_VERSION}-tvOS-${ARCH}.log"
+	./configure -prefix="/tmp/${CURL_VERSION}-tvOS-${ARCH}" --build=${BUILD} --host="arm-apple-darwin" --disable-shared -with-random=/dev/urandom --disable-ntlm-wb --with-ssl="${OPENSSL}/tvOS" ${NGHTTP2CFG} &> "/tmp/${CURL_VERSION}-tvOS-${ARCH}.log"
 
 	# Patch to not use fork() since it's not available on tvOS
         LANG=C sed -i -- 's/define HAVE_FORK 1/define HAVE_FORK 0/' "./lib/curl_config.h"
@@ -437,6 +471,14 @@ buildTVOS()
 buildTVOSsim()
 {
 	ARCH=$1
+
+	BUILD="x86_64-apple-darwin"
+	BUILD_MACHINE=`uname -m`
+
+	if [ ${BUILD_MACHINE} == 'arm64' ]; then
+		# Apple ARM Silicon Build Machine Detected - native build
+		BUILD="aarch64-apple-darwin"
+	fi
 
 	pushd . > /dev/null
 	cd "${CURL_VERSION}"
@@ -464,9 +506,9 @@ buildTVOSsim()
 	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${TVOS_SDK_VERSION} ${archbold}${ARCH}${dim} (tvOS SIM ${TVOS_MIN_SDK_VERSION})"
 
 	if [[ "${ARCH}" == "arm64" ]]; then
-		./configure --prefix="/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}" --host="arm-apple-darwin" --disable-shared -with-random=/dev/urandom --disable-ntlm-wb --with-ssl="${OPENSSL}/${PLATFORMDIR}" ${NGHTTP2CFG}  &> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log"
+		./configure --prefix="/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}" --build=${BUILD} --host="arm-apple-darwin" --disable-shared -with-random=/dev/urandom --disable-ntlm-wb --with-ssl="${OPENSSL}/${PLATFORMDIR}" ${NGHTTP2CFG}  &> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log"
 	else
-		./configure --prefix="/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}" --host="${ARCH}-apple-darwin" --disable-shared  -with-random=/dev/urandom --disable-ntlm-wb --with-ssl="${OPENSSL}/${PLATFORMDIR}" ${NGHTTP2CFG}  &> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log"
+		./configure --prefix="/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}" --build=${BUILD} --host="${ARCH}-apple-darwin" --disable-shared  -with-random=/dev/urandom --disable-ntlm-wb --with-ssl="${OPENSSL}/${PLATFORMDIR}" ${NGHTTP2CFG}  &> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log"
 	fi
 
 	# Patch to not use fork() since it's not available on tvOS

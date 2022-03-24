@@ -367,7 +367,7 @@ buildTVOSsim()
 	export CPPFLAGS=" -I.. -isysroot ${SYSROOT}"
 	export CXX="${BUILD_TOOLS}/usr/bin/gcc"
 
-	echo -e "${subbold} Building ${OPENSSL_VERSION} for ${PLATFORM} ${TVOS_SDK_VERSION} ${archbold}${ARCH}${dim} (tvOS Simulator ${TVOS_MIN_SDK_VERSION})"
+	echo -e "${subbold}Building ${OPENSSL_VERSION} for ${PLATFORM} ${TVOS_SDK_VERSION} ${archbold}${ARCH}${dim} (tvOS Simulator ${TVOS_MIN_SDK_VERSION})"
 
 	# Patch apps/speed.c to not use fork() since it's not available on tvOS
 	LANG=C sed -i -- 's/define HAVE_FORK 1/define HAVE_FORK 0/' "./apps/speed.c"
