@@ -56,6 +56,7 @@ openssl-ios-x86_64-maccatalyst.a
 releases
 sandbox/
 example/iOS\ Test\ App/libs/
+curl/curl-7.80.0/
 curl/include/
 nghttp2/Mac/
 nghttp2/iOS-simulator/

@@ -375,8 +375,6 @@ lipo \
 	-create -output "${NGHTTP2}/lib/libnghttp2_iOS-fat.a"
 
 lipo \
-	"${NGHTTP2}/iOS/armv7/lib/libnghttp2.a" \
-	"${NGHTTP2}/iOS/armv7s/lib/libnghttp2.a" \
 	"${NGHTTP2}/iOS/arm64/lib/libnghttp2.a" \
 	"${NGHTTP2}/iOS/arm64e/lib/libnghttp2.a" \
 	-create -output "${NGHTTP2}/lib/libnghttp2_iOS.a"
