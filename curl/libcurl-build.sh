@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script downlaods and builds the Mac, iOS and tvOS libcurl libraries with Bitcode enabled
+# This script downlaods and builds the Mac and iOS libcurl libraries
 
 # Credits:
 #
@@ -36,7 +36,6 @@ trap 'echo -e "${alert}** ERROR with Build - Check /tmp/curl*.log${alertdim}"; t
 # Set defaults
 CURL_VERSION="curl-7.74.0"
 nohttp2="0"
-catalyst="0"
 
 # Leave it empty to use OpenSSL we built before
 SSLCFG="--with-secure-transport"
@@ -53,11 +52,8 @@ CURL_OTHER_FLAGS="--disable-shared --enable-static -with-random=/dev/urandom \
 # Set minimum OS versions for target
 MACOS_X86_64_VERSION=""			# Empty = use host version
 MACOS_ARM64_VERSION=""			# Min supported is MacOS 11.0 Big Sur
-CATALYST_IOS="13.0"				# Min supported is iOS 13.0 for Mac Catalyst
 IOS_MIN_SDK_VERSION="8.0"
 IOS_SDK_VERSION=""
-TVOS_MIN_SDK_VERSION="9.0"
-TVOS_SDK_VERSION=""
 
 CORES=$(sysctl -n hw.ncpu)
 
@@ -77,13 +73,9 @@ usage ()
     echo
 	echo "         -v   version of curl (default $CURL_VERSION)"
 	echo "         -s   iOS min target version (default $IOS_MIN_SDK_VERSION)"
-	echo "         -t   tvOS min target version (default $TVOS_MIN_SDK_VERSION)"
 	echo "         -i   macOS 86_64 min target version (default $MACOS_X86_64_VERSION)"
 	echo "         -a   macOS arm64 min target version (default $MACOS_ARM64_VERSION)"
-	echo "         -b   compile without bitcode"
 	echo "         -n   compile with nghttp2"
-	echo "         -u   Mac Catalyst iOS min target version (default $CATALYST_IOS)"
-	echo "         -m   compile Mac Catalyst library [beta]"
 	echo "         -x   disable color output"
 	echo "         -h   show usage"
 	echo
@@ -99,9 +91,6 @@ while getopts "v:s:t:i:a:u:nmbxh\?" o; do
 		s)
 			IOS_MIN_SDK_VERSION="${OPTARG}"
 			;;
-		t)
-			TVOS_MIN_SDK_VERSION="${OPTARG}"
-			;;
 		i)
 			MACOS_X86_64_VERSION="${OPTARG}"
 			;;
@@ -110,16 +99,6 @@ while getopts "v:s:t:i:a:u:nmbxh\?" o; do
 			;;
 		n)
 			nohttp2="1"
-			;;
-		m)
-			catalyst="1"
-			;;
-		u)
-			catalyst="1"
-			CATALYST_IOS="${OPTARG}"
-			;;
-		b)
-			NOBITCODE="yes"
 			;;
 		x)
 			bold=""
@@ -190,7 +169,7 @@ if ! (type "pkg-config" > /dev/null 2>&1 ) ; then
 		echo -e "${alert}** FATAL ERROR: pkg-config failed to install - exiting.${normal}"
 		exit 1
 	fi
-fi 
+fi
 
 buildMac()
 {
@@ -210,7 +189,7 @@ buildMac()
 	TARGET="darwin-i386-cc"
 	BUILD_MACHINE=`uname -m`
 	export CC="clang"
-	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -fembed-bitcode"
+	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2"
 	export LDFLAGS="-arch ${ARCH} -L${OPENSSL}/Mac/lib ${NGHTTP2LIB}"
 
 	if [[ $ARCH == "x86_64" ]]; then
@@ -221,12 +200,12 @@ buildMac()
 			BUILD="aarch64-apple-darwin"
 			export CC="clang"
 			export CXX="clang"
-			export CFLAGS=" -mmacosx-version-min=${MACOS_X86_64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 -fembed-bitcode "
+			export CFLAGS=" -mmacosx-version-min=${MACOS_X86_64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 "
 			export LDFLAGS=" -arch ${ARCH} -isysroot ${DEVELOPER}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk -L${OPENSSL}/Mac/lib ${NGHTTP2LIB} "
 			export CPPFLAGS=" -I.. -isysroot ${DEVELOPER}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk "
 		else
 			# Apple x86_64 Build Machine Detected - native build
-			export CFLAGS=" -mmacosx-version-min=${MACOS_X86_64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 -fembed-bitcode "
+			export CFLAGS=" -mmacosx-version-min=${MACOS_X86_64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 "
 		fi
 	fi
 	if [[ $ARCH == "arm64" ]]; then
@@ -237,13 +216,13 @@ buildMac()
    			# Apple ARM Silicon Build Machine Detected - native build
 			BUILD="aarch64-apple-darwin"
 			export CC="${DEVELOPER}/usr/bin/gcc"
-			export CFLAGS=" -mmacosx-version-min=${MACOS_ARM64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 -fembed-bitcode "
+			export CFLAGS=" -mmacosx-version-min=${MACOS_ARM64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 "
 		else
 			# Apple x86_64 Build Machine Detected - cross compile
 			TARGET="darwin64-arm64-cc"
 			export CC="clang"
 			export CXX="clang"
-			export CFLAGS=" -mmacosx-version-min=${MACOS_ARM64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 -fembed-bitcode "
+			export CFLAGS=" -mmacosx-version-min=${MACOS_ARM64_VERSION} -arch ${ARCH} -pipe -Os -gdwarf-2 "
 			export LDFLAGS=" -arch ${ARCH} -isysroot ${DEVELOPER}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk -L${OPENSSL}/Mac/lib ${NGHTTP2LIB} "
 			export CPPFLAGS=" -I.. -isysroot ${DEVELOPER}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk "
 		fi
@@ -270,65 +249,9 @@ buildMac()
 	fi
 }
 
-buildCatalyst()
-{
-	ARCH=$1
-	BITCODE=$2
-
-	pushd . > /dev/null
-	cd "${CURL_VERSION}"
-
-	PLATFORM="MacOSX"
-	TARGET="${ARCH}-apple-ios${CATALYST_IOS}-macabi"
-	BUILD="x86_64-apple-darwin"
-	BUILD_MACHINE=`uname -m`
-
-	if [ ${BUILD_MACHINE} == 'arm64' ]; then
-		# Apple ARM Silicon Build Machine Detected - native build
-		BUILD="aarch64-apple-darwin"
-	fi
-
-	if [[ "${BITCODE}" == "nobitcode" ]]; then
-		CC_BITCODE_FLAG=""
-	else
-		CC_BITCODE_FLAG="-fembed-bitcode"
-	fi
-
-	if [ -z "${SSLCFG}" ]; then
-		SSLCFG="--with-ssl=${OPENSSL}/Catalyst"
-	fi
-
-	if [ $nohttp2 == "1" ]; then
-		NGHTTP2CFG="--with-nghttp2=${NGHTTP2}/Catalyst/${ARCH}"
-		NGHTTP2LIB="-L${NGHTTP2}/Catalyst/${ARCH}/lib"
-	fi
-
-	export $PLATFORM
-	export CROSS_TOP="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
-	export CROSS_SDK="${PLATFORM}.sdk"
-	export CC="${DEVELOPER}/usr/bin/gcc"
-	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -target $TARGET ${CC_BITCODE_FLAG}"
-	export LDFLAGS="-arch ${ARCH} -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -L${OPENSSL}/catalyst/lib ${NGHTTP2LIB}"
-
-	echo -e "${subbold}Building ${CURL_VERSION} for ${archbold}${ARCH}${dim} ${BITCODE} (Mac Catalyst iOS ${CATALYST_IOS})"
-
-	if [[ "${ARCH}" == "arm64" ]]; then
-		./configure -prefix="/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log"
-	else
-		./configure -prefix="/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build=${BUILD} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log"
-	fi
-	
-	make -j${CORES} >> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log" 2>&1
-	make install >> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log" 2>&1
-	make clean >> "/tmp/${CURL_VERSION}-catalyst-${ARCH}-${BITCODE}.log" 2>&1
-	popd > /dev/null
-}
-
-
 buildIOS()
 {
 	ARCH=$1
-	BITCODE=$2
 
 	BUILD="x86_64-apple-darwin"
 	BUILD_MACHINE=`uname -m`
@@ -344,12 +267,6 @@ buildIOS()
 	PLATFORM="iPhoneOS"
 	PLATFORMDIR="iOS"
 
-	if [[ "${BITCODE}" == "nobitcode" ]]; then
-		CC_BITCODE_FLAG=""
-	else
-		CC_BITCODE_FLAG="-fembed-bitcode"
-	fi
-
 	if [ -z "${SSLCFG}" ]; then
 		SSLCFG="--with-ssl=${OPENSSL}/${PLATFORMDIR}"
 	fi
@@ -363,31 +280,30 @@ buildIOS()
 	export CROSS_TOP="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
 	export CROSS_SDK="${PLATFORM}${IOS_SDK_VERSION}.sdk"
 	export CC="${DEVELOPER}/usr/bin/gcc"
-	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} ${CC_BITCODE_FLAG}"
+	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -miphoneos-version-min=${IOS_MIN_SDK_VERSION}"
 
-	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${IOS_SDK_VERSION} ${archbold}${ARCH}${dim} ${BITCODE} (iOS ${IOS_MIN_SDK_VERSION})"
+	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${IOS_SDK_VERSION} ${archbold}${ARCH}${dim} (iOS ${IOS_MIN_SDK_VERSION})"
 
 	export LDFLAGS="-arch ${ARCH} -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -L${OPENSSL}/${PLATFORMDIR}/lib ${NGHTTP2LIB}"
 
 	if [[ "${ARCH}" == *"arm64"* || "${ARCH}" == "arm64e" ]]; then
-		./configure -prefix="/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-iOS-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-${ARCH}.log"
 	else
-		./configure -prefix="/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build=${BUILD} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-iOS-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build=${BUILD} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-${ARCH}.log"
 	fi
 
 	# Patch to not use MSG_NOSIGNAL since it's not available on iOS
 	LANG=C sed -i -- 's/define SEND_4TH_ARG MSG_NOSIGNAL/define SEND_4TH_ARG 0/' "./lib/curl_setup_once.h"
 
-	make -j${CORES} >> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log" 2>&1
-	make install >> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log" 2>&1
-	make clean >> "/tmp/${CURL_VERSION}-iOS-${ARCH}-${BITCODE}.log" 2>&1
+	make -j${CORES} >> "/tmp/${CURL_VERSION}-iOS-${ARCH}.log" 2>&1
+	make install >> "/tmp/${CURL_VERSION}-iOS-${ARCH}.log" 2>&1
+	make clean >> "/tmp/${CURL_VERSION}-iOS-${ARCH}.log" 2>&1
 	popd > /dev/null
 }
 
 buildIOSsim()
 {
 	ARCH=$1
-	BITCODE=$2
 
 	BUILD_ARCH=`uname -m`
 	if [ ${BUILD_ARCH} == 'arm64' ]; then
@@ -400,12 +316,6 @@ buildIOSsim()
 
 	PLATFORM="iPhoneSimulator"
 	PLATFORMDIR="iOS-simulator"
-
-	if [[ "${BITCODE}" == "nobitcode" ]]; then
-		CC_BITCODE_FLAG=""
-	else
-		CC_BITCODE_FLAG="-fembed-bitcode"
-	fi
 
 	if [ -z "${SSLCFG}" ]; then
 		SSLCFG="--with-ssl=${OPENSSL}/${PLATFORMDIR}"
@@ -424,143 +334,31 @@ buildIOSsim()
 		RUNTARGET="-target ${ARCH}-apple-ios${IOS_MIN_SDK_VERSION}-simulator"
 	fi
 
-	# set up exports for build 
+	# set up exports for build
 	export $PLATFORM
 	export CROSS_TOP="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
 	export CROSS_SDK="${PLATFORM}${IOS_SDK_VERSION}.sdk"
 	export CC="${DEVELOPER}/usr/bin/gcc"
 	export CXX="${DEVELOPER}/usr/bin/gcc"
-	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -miphoneos-version-min=${MIPHONEOS} ${CC_BITCODE_FLAG} ${RUNTARGET} "
+	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -miphoneos-version-min=${MIPHONEOS} ${RUNTARGET} "
 	export LDFLAGS="-arch ${ARCH} -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -L${OPENSSL}/${PLATFORMDIR}/lib ${NGHTTP2LIB} "
 	export CPPFLAGS=" -I.. -isysroot ${DEVELOPER}/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk "
 
-	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${IOS_SDK_VERSION} ${archbold}${ARCH}${dim} ${BITCODE} (iOS ${IOS_MIN_SDK_VERSION})"
+	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${IOS_SDK_VERSION} ${archbold}${ARCH}${dim} (iOS ${IOS_MIN_SDK_VERSION})"
 
 	if [[ "${ARCH}" == *"arm64"* || "${ARCH}" == "arm64e" ]]; then
-		./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build="${BUILD_ARCH}-apple-darwin" --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log"
+		./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build="${BUILD_ARCH}-apple-darwin" --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}.log"
 	else
 		if [[ $ARCH != ${BUILD_ARCH} ]]; then
-			./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build="${BUILD_ARCH}-apple-darwin" --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log"
+			./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build="${BUILD_ARCH}-apple-darwin" --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}.log"
 		else
-			./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log"
+			./configure -prefix="/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}.log"
 		fi
 	fi
 
-	make -j${CORES} >> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log" 2>&1
-	make install >> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log" 2>&1
-	make clean >> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}-${BITCODE}.log" 2>&1
-	popd > /dev/null
-}
-
-buildTVOS()
-{
-	ARCH=$1
-
-	BUILD="x86_64-apple-darwin"
-	BUILD_MACHINE=`uname -m`
-
-	if [ ${BUILD_MACHINE} == 'arm64' ]; then
-		# Apple ARM Silicon Build Machine Detected - native build
-		BUILD="aarch64-apple-darwin"
-	fi
-
-	pushd . > /dev/null
-	cd "${CURL_VERSION}"
-
-	if [[ "${ARCH}" == "i386" || "${ARCH}" == "x86_64" ]]; then
-		PLATFORM="AppleTVSimulator"
-	else
-		PLATFORM="AppleTVOS"
-	fi
-
-	if [ -z "${SSLCFG}" ]; then
-		SSLCFG="--with-ssl=${OPENSSL}/tvOS"
-	fi
-
-	if [ $nohttp2 == "1" ]; then
-		NGHTTP2CFG="--with-nghttp2=${NGHTTP2}/tvOS/${ARCH}"
-		NGHTTP2LIB="-L${NGHTTP2}/tvOS/${ARCH}/lib"
-	fi
-
-	export $PLATFORM
-	export CROSS_TOP="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
-	export CROSS_SDK="${PLATFORM}${TVOS_SDK_VERSION}.sdk"
-	export CC="${DEVELOPER}/usr/bin/gcc"
-	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -mtvos-version-min=${TVOS_MIN_SDK_VERSION} -fembed-bitcode"
-	export LDFLAGS="-arch ${ARCH} -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -L${OPENSSL}/tvOS/lib ${NGHTTP2LIB}"
-#	export PKG_CONFIG_PATH
-
-	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${TVOS_SDK_VERSION} ${archbold}${ARCH}${dim} (tvOS ${TVOS_MIN_SDK_VERSION})"
-
-	./configure -prefix="/tmp/${CURL_VERSION}-tvOS-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build=${BUILD} --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-tvOS-${ARCH}.log"
-
-	# Patch to not use fork() since it's not available on tvOS
-	LANG=C sed -i -- 's/define HAVE_FORK 1/define HAVE_FORK 0/' "./lib/curl_config.h"
-	LANG=C sed -i -- 's/HAVE_FORK"]=" 1"/HAVE_FORK\"]=" 0"/' "config.status"
-
-	make -j${CORES} >> "/tmp/${CURL_VERSION}-tvOS-${ARCH}.log" 2>&1
-	make install >> "/tmp/${CURL_VERSION}-tvOS-${ARCH}.log" 2>&1
-	make clean >> "/tmp/${CURL_VERSION}-tvOS-${ARCH}.log" 2>&1
-	popd > /dev/null
-}
-
-
-buildTVOSsim()
-{
-	ARCH=$1
-
-	BUILD_ARCH=`uname -m`
-	if [ ${BUILD_ARCH} == 'arm64' ]; then
-		# Apple ARM Silicon Build Machine Detected - native build
-		BUILD_ARCH="aarch64"
-	fi
-
-	pushd . > /dev/null
-	cd "${CURL_VERSION}"
-
-	PLATFORM="AppleTVSimulator"
-	PLATFORMDIR="tvOS-simulator"
-
-	if [ -z "${SSLCFG}" ]; then
-		SSLCFG="--with-ssl=${OPENSSL}/${PLATFORMDIR}"
-	fi
-
-	if [ $nohttp2 == "1" ]; then
-		NGHTTP2CFG="--with-nghttp2=${NGHTTP2}/${PLATFORMDIR}/${ARCH}"
-		NGHTTP2LIB="-L${NGHTTP2}/${PLATFORMDIR}/${ARCH}/lib"
-	fi
-
-	TARGET="darwin64-${ARCH}-cc"
-	RUNTARGET="-target ${ARCH}-apple-tvos${TVOS_MIN_SDK_VERSION}-simulator"
-
-	export $PLATFORM
-	export SYSROOT=$(xcrun --sdk appletvsimulator --show-sdk-path)
-	export CC="${DEVELOPER}/usr/bin/gcc"
-	export CXX="${DEVELOPER}/usr/bin/gcc"
-	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -isysroot ${SYSROOT} -mtvos-version-min=${TVOS_MIN_SDK_VERSION} -fembed-bitcode ${RUNTARGET}"
-	export LDFLAGS="-arch ${ARCH} -isysroot ${SYSROOT} -L${OPENSSL}/${PLATFORMDIR}/lib ${NGHTTP2LIB}"
-	export CPPFLAGS=" -I.. -isysroot ${SYSROOT} "
-
-
-	echo -e "${subbold}Building ${CURL_VERSION} for ${PLATFORM} ${TVOS_SDK_VERSION} ${archbold}${ARCH}${dim} (tvOS SIM ${TVOS_MIN_SDK_VERSION})"
-
-	if [[ "${ARCH}" == "arm64" ]]; then
-		./configure --prefix="/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build="${BUILD_ARCH}-apple-darwin" --host="arm-apple-darwin" &> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log"
-	else
-		if [[ $ARCH != ${BUILD_ARCH} ]]; then
-			./configure --prefix="/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --build="${BUILD_ARCH}-apple-darwin" --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log"
-		else
-			./configure --prefix="/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}" ${SSLCFG} ${NGHTTP2CFG} ${CURL_OTHER_FLAGS} --host="${ARCH}-apple-darwin" &> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log"
-		fi
-	fi
-
-	# Patch to not use fork() since it's not available on tvOS
-	LANG=C sed -i -- 's/define HAVE_FORK 1/define HAVE_FORK 0/' "./lib/curl_config.h"
-	LANG=C sed -i -- 's/HAVE_FORK"]=" 1"/HAVE_FORK\"]=" 0"/' "config.status"
-
-	make -j${CORES} >> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log" 2>&1
-	make install >> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log" 2>&1
-	make clean >> "/tmp/${CURL_VERSION}-tvOS-simulator-${ARCH}.log" 2>&1
+	make -j${CORES} >> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}.log" 2>&1
+	make install >> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}.log" 2>&1
+	make clean >> "/tmp/${CURL_VERSION}-iOS-simulator-${ARCH}.log" 2>&1
 	popd > /dev/null
 }
 
@@ -598,88 +396,15 @@ lipo \
 	"/tmp/${CURL_VERSION}-arm64/lib/libcurl.a" \
 	-create -output lib/libcurl_Mac.a
 
-if [ $catalyst == "1" ]; then
-echo -e "${bold}Building Catalyst libraries${dim}"
-buildCatalyst "x86_64" "bitcode"
-buildCatalyst "arm64" "bitcode"
+buildIOS "arm64"
+buildIOS "arm64e"
+buildIOSsim "x86_64"
 
 lipo \
-	"/tmp/${CURL_VERSION}-catalyst-x86_64-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-catalyst-arm64-bitcode/lib/libcurl.a" \
-	-create -output lib/libcurl_Catalyst.a
-fi
-
-echo -e "${bold}Building iOS libraries (bitcode)${dim}"
-buildIOS "armv7" "bitcode"
-buildIOS "armv7s" "bitcode"
-buildIOS "arm64" "bitcode"
-buildIOS "arm64e" "bitcode"
-
-lipo \
-	"/tmp/${CURL_VERSION}-iOS-armv7-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-armv7s-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-arm64-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-arm64e-bitcode/lib/libcurl.a" \
+	"/tmp/${CURL_VERSION}-iOS-arm64/lib/libcurl.a" \
+	"/tmp/${CURL_VERSION}-iOS-arm64e/lib/libcurl.a" \
+	"/tmp/${CURL_VERSION}-iOS-simulator-x86_64/lib/libcurl.a" \
 	-create -output lib/libcurl_iOS.a
-
-buildIOSsim "i386" "bitcode"
-buildIOSsim "x86_64" "bitcode"
-buildIOSsim "arm64" "bitcode"
-
-lipo \
-	"/tmp/${CURL_VERSION}-iOS-simulator-i386-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-simulator-x86_64-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-simulator-arm64-bitcode/lib/libcurl.a" \
-	-create -output lib/libcurl_iOS-simulator.a
-
-lipo \
-	"/tmp/${CURL_VERSION}-iOS-armv7-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-armv7s-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-arm64-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-arm64e-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-simulator-i386-bitcode/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-iOS-simulator-x86_64-bitcode/lib/libcurl.a" \
-	-create -output lib/libcurl_iOS-fat.a
-
-if [[ "${NOBITCODE}" == "yes" ]]; then
-	echo -e "${bold}Building iOS libraries (nobitcode)${dim}"
-	buildIOS "armv7" "nobitcode"
-	buildIOS "armv7s" "nobitcode"
-	buildIOS "arm64" "nobitcode"
-	buildIOS "arm64e" "nobitcode"
-	buildIOSsim "x86_64" "nobitcode"
-	buildIOSsim "i386" "nobitcode"
-
-	lipo \
-		"/tmp/${CURL_VERSION}-iOS-armv7-nobitcode/lib/libcurl.a" \
-		"/tmp/${CURL_VERSION}-iOS-armv7s-nobitcode/lib/libcurl.a" \
-		"/tmp/${CURL_VERSION}-iOS-simulator-i386-nobitcode/lib/libcurl.a" \
-		"/tmp/${CURL_VERSION}-iOS-arm64-nobitcode/lib/libcurl.a" \
-		"/tmp/${CURL_VERSION}-iOS-arm64e-nobitcode/lib/libcurl.a" \
-		"/tmp/${CURL_VERSION}-iOS-simulator-x86_64-nobitcode/lib/libcurl.a" \
-		-create -output lib/libcurl_iOS_nobitcode.a
-
-fi
-
-echo -e "${bold}Building tvOS libraries${dim}"
-buildTVOS "arm64"
-
-lipo \
-	"/tmp/${CURL_VERSION}-tvOS-arm64/lib/libcurl.a" \
-	-create -output lib/libcurl_tvOS.a
-
-buildTVOSsim "x86_64"
-buildTVOSsim "arm64"
-
-lipo \
-	"/tmp/${CURL_VERSION}-tvOS-arm64/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-tvOS-simulator-x86_64/lib/libcurl.a" \
-	-create -output lib/libcurl_tvOS-fat.a
-
-lipo \
-	"/tmp/${CURL_VERSION}-tvOS-simulator-x86_64/lib/libcurl.a" \
-	"/tmp/${CURL_VERSION}-tvOS-simulator-arm64/lib/libcurl.a" \
-	-create -output lib/libcurl_tvOS-simulator.a
 
 echo -e "${bold}Cleaning up${dim}"
 rm -rf /tmp/${CURL_VERSION}-*

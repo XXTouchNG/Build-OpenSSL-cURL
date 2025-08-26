@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script builds openssl+libcurl libraries for MacOS, iOS and tvOS
+# This script builds openssl+libcurl libraries for MacOS and iOS
 #
 # Jason Cox, @jasonacox
 #   https://github.com/jasonacox/Build-OpenSSL-cURL
@@ -20,11 +20,9 @@ NGHTTP2="1.46.0"	# https://nghttp2.org/
 BUILD_MACHINE=`uname -m`
 
 # Set minimum OS versions for target
-MACOS_X86_64_VERSION="11.0"			# Empty = use host version
-MACOS_ARM64_VERSION="11.0"			# Min supported is MacOS 11.0 Big Sur
-CATALYST_IOS="13.0"				# Min supported is iOS 13.0 for Mac Catalyst
-IOS_MIN_SDK_VERSION="8.0"
-TVOS_MIN_SDK_VERSION="9.0"
+MACOS_X86_64_VERSION="12.0"			# Empty = use host version
+MACOS_ARM64_VERSION="12.0"			# Min supported is MacOS 11.0 Big Sur
+IOS_MIN_SDK_VERSION="15.0"
 
 # Semantic Version Comparison
 version_lte() {
@@ -44,9 +42,7 @@ fi
 # Global flags
 engine=""
 buildnghttp2="-n"
-disablebitcode=""
 colorflag=""
-catalyst=""
 sslv3=""
 
 # Formatting
@@ -76,12 +72,8 @@ usage ()
 	echo "         -n <version>   Build nghttp2 version (default $NGHTTP2)"
 	echo "         -d             Compile without HTTP2 support"
 	echo "         -e             Compile with OpenSSL engine support"
-	echo "         -b             Compile without bitcode"
-	echo "         -m             Compile Mac Catalyst library"
-	echo "         -u <version>   Mac Catalyst iOS min target version (default $CATALYST_IOS)"
 	echo "         -3             Compile with SSLv3"
 	echo "         -s <version>   iOS min target version (default $IOS_MIN_SDK_VERSION)"
-	echo "         -t <version>   tvOS min target version (default $TVOS_MIN_SDK_VERSION)"
 	echo "         -i <version>   macOS 86_64 min target version (default $MACOS_X86_64_VERSION)"
 	echo "         -a <version>   macOS arm64 min target version (default $MACOS_ARM64_VERSION)"
 	echo "         -x             No color output"
@@ -108,24 +100,11 @@ while getopts "o:c:n:u:s:t:i:a:debm3xh\?" o; do
 		e)
 			engine="-e"
 			;;
-		b)
-			disablebitcode="-b"
-			;;
-		m)
-       		catalyst="-m"
-			;;
-		u)
-			catalyst="-m -u ${OPTARG}"
-			CATALYST_IOS="${OPTARG}"
-			;;
 		3)
        		sslv3="-3"
 			;;
 		s)
 			IOS_MIN_SDK_VERSION="${OPTARG}"
-			;;
-		t)
-			TVOS_MIN_SDK_VERSION="${OPTARG}"
 			;;
 		i)
 			MACOS_X86_64_VERSION="${OPTARG}"
@@ -150,16 +129,12 @@ done
 shift $((OPTIND-1))
 
 # Set OS min versions
-OSARGS="-s ${IOS_MIN_SDK_VERSION} -t ${TVOS_MIN_SDK_VERSION} -i ${MACOS_X86_64_VERSION} -a ${MACOS_ARM64_VERSION}"
+OSARGS="-s ${IOS_MIN_SDK_VERSION} -i ${MACOS_X86_64_VERSION} -a ${MACOS_ARM64_VERSION}"
 
 ## Welcome
 echo -e "${bold}Build-OpenSSL-cURL${dim}"
-if [ "$catalyst" == "-m" ]; then
-	echo "This script builds OpenSSL, nghttp2 and libcurl for MacOS, Catalyst, iOS and tvOS devices."
-else
-	echo "This script builds OpenSSL, nghttp2 and libcurl for MacOS, iOS and tvOS devices."
-fi
-echo "Targets: x86_64, armv7, armv7s, arm64 and arm64e"
+echo "This script builds OpenSSL, nghttp2 and libcurl for macOS and iOS devices."
+echo "Targets: x86_64, arm64 and arm64e"
 
 ## Start Counter
 START=$(date +%s)
@@ -168,7 +143,7 @@ START=$(date +%s)
 echo
 cd openssl
 echo -e "${bold}Building OpenSSL${normal}"
-./openssl-build.sh -v "$OPENSSL" $engine $colorflag $catalyst $sslv3 $OSARGS
+./openssl-build.sh -v "$OPENSSL" $engine $colorflag $sslv3 $OSARGS
 cd ..
 
 ## Nghttp2 Build
@@ -178,7 +153,7 @@ else
 	echo
 	echo -e "${bold}Building nghttp2 for HTTP2 support${normal}"
 	cd nghttp2
-	./nghttp2-build.sh -v "$NGHTTP2" $colorflag $catalyst $OSARGS
+	./nghttp2-build.sh -v "$NGHTTP2" $colorflag $OSARGS
 	cd ..
 fi
 
@@ -186,7 +161,7 @@ fi
 echo
 echo -e "${bold}Building Curl${normal}"
 cd curl
-./libcurl-build.sh -v "$LIBCURL" $disablebitcode $colorflag $buildnghttp2 $catalyst $OSARGS
+./libcurl-build.sh -v "$LIBCURL" $colorflag $buildnghttp2 $OSARGS
 cd ..
 
 ## Archive Libraries and Clean Up
@@ -218,11 +193,6 @@ mkdir -p "$ARCHIVE/lib/iOS"
 mkdir -p "$ARCHIVE/lib/iOS-simulator"
 mkdir -p "$ARCHIVE/lib/iOS-fat"
 mkdir -p "$ARCHIVE/lib/MacOS"
-mkdir -p "$ARCHIVE/lib/tvOS"
-mkdir -p "$ARCHIVE/lib/tvOS-simulator"
-if [ "$catalyst" == "-m" ]; then
-mkdir -p "$ARCHIVE/lib/Catalyst"
-fi
 mkdir -p "$ARCHIVE/bin"
 mkdir -p "$ARCHIVE/framework"
 mkdir -p "$ARCHIVE/xcframework"
@@ -231,73 +201,31 @@ mkdir -p "$ARCHIVE/xcframework"
 cp curl/lib/libcurl_iOS.a $ARCHIVE/lib/iOS/libcurl.a
 cp curl/lib/libcurl_iOS-simulator.a $ARCHIVE/lib/iOS-simulator/libcurl.a
 cp curl/lib/libcurl_iOS-fat.a $ARCHIVE/lib/iOS-fat/libcurl.a
-cp curl/lib/libcurl_tvOS.a $ARCHIVE/lib/tvOS/libcurl.a
-cp curl/lib/libcurl_tvOS-simulator.a $ARCHIVE/lib/tvOS-simulator/libcurl.a
 cp curl/lib/libcurl_Mac.a $ARCHIVE/lib/MacOS/libcurl.a
 
 cp openssl/iOS/lib/libcrypto.a $ARCHIVE/lib/iOS/libcrypto.a
 cp openssl/iOS-simulator/lib/libcrypto.a $ARCHIVE/lib/iOS-simulator/libcrypto.a
 cp openssl/iOS-fat/lib/libcrypto.a $ARCHIVE/lib/iOS-fat/libcrypto.a
-cp openssl/tvOS/lib/libcrypto.a $ARCHIVE/lib/tvOS/libcrypto.a
-cp openssl/tvOS-simulator/lib/libcrypto.a $ARCHIVE/lib/tvOS-simulator/libcrypto.a
 cp openssl/Mac/lib/libcrypto.a $ARCHIVE/lib/MacOS/libcrypto.a
 
 cp openssl/iOS/lib/libssl.a $ARCHIVE/lib/iOS/libssl.a
 cp openssl/iOS-simulator/lib/libssl.a $ARCHIVE/lib/iOS-simulator/libssl.a
 cp openssl/iOS-fat/lib/libssl.a $ARCHIVE/lib/iOS-fat/libssl.a
-cp openssl/tvOS/lib/libssl.a $ARCHIVE/lib/tvOS/libssl.a
-cp openssl/tvOS-simulator/lib/libssl.a $ARCHIVE/lib/tvOS-simulator/libssl.a
 cp openssl/Mac/lib/libssl.a $ARCHIVE/lib/MacOS/libssl.a
 
-if [ "$catalyst" == "-m" ]; then
-	# Add catalyst libraries
-	cp curl/lib/libcurl_Catalyst.a $ARCHIVE/lib/Catalyst/libcurl.a
-	cp openssl/Catalyst/lib/libcrypto.a $ARCHIVE/lib/Catalyst/libcrypto.a
-	cp openssl/Catalyst/lib/libssl.a $ARCHIVE/lib/Catalyst/libssl.a
-
-	# Build XCFrameworks with Catalyst library
-	xcodebuild -create-xcframework \
-		-library $ARCHIVE/lib/iOS/libcurl.a \
-		-library $ARCHIVE/lib/iOS-simulator/libcurl.a \
-		-library $ARCHIVE/lib/tvOS/libcurl.a \
-		-library $ARCHIVE/lib/tvOS-simulator/libcurl.a \
-		-library $ARCHIVE/lib/Catalyst/libcurl.a \
-		-output $ARCHIVE/xcframework/libcurl.xcframework
-	xcodebuild -create-xcframework \
-		-library $ARCHIVE/lib/iOS/libcrypto.a \
-		-library $ARCHIVE/lib/iOS-simulator/libcrypto.a \
-		-library $ARCHIVE/lib/tvOS/libcrypto.a \
-		-library $ARCHIVE/lib/tvOS-simulator/libcrypto.a \
-		-library $ARCHIVE/lib/Catalyst/libcrypto.a \
-		-output $ARCHIVE/xcframework/libcrypto.xcframework
-	xcodebuild -create-xcframework \
-		-library $ARCHIVE/lib/iOS/libssl.a \
-		-library $ARCHIVE/lib/iOS-simulator/libssl.a \
-		-library $ARCHIVE/lib/tvOS/libssl.a \
-		-library $ARCHIVE/lib/tvOS-simulator/libssl.a \
-		-library $ARCHIVE/lib/Catalyst/libssl.a \
-		-output $ARCHIVE/xcframework/libssl.xcframework
-else
-	# Build XCFrameworks
-	xcodebuild -create-xcframework \
-		-library $ARCHIVE/lib/iOS/libcurl.a \
-		-library $ARCHIVE/lib/iOS-simulator/libcurl.a \
-		-library $ARCHIVE/lib/tvOS/libcurl.a \
-		-library $ARCHIVE/lib/tvOS-simulator/libcurl.a \
-		-output $ARCHIVE/xcframework/libcurl.xcframework
-	xcodebuild -create-xcframework \
-		-library $ARCHIVE/lib/iOS/libcrypto.a \
-		-library $ARCHIVE/lib/iOS-simulator/libcrypto.a \
-		-library $ARCHIVE/lib/tvOS/libcrypto.a \
-		-library $ARCHIVE/lib/tvOS-simulator/libcrypto.a \
-		-output $ARCHIVE/xcframework/libcrypto.xcframework
-	xcodebuild -create-xcframework \
-		-library $ARCHIVE/lib/iOS/libssl.a \
-		-library $ARCHIVE/lib/iOS-simulator/libssl.a \
-		-library $ARCHIVE/lib/tvOS/libssl.a \
-		-library $ARCHIVE/lib/tvOS-simulator/libssl.a \
-		-output $ARCHIVE/xcframework/libssl.xcframework
-fi
+# Build XCFrameworks
+xcodebuild -create-xcframework \
+	-library $ARCHIVE/lib/iOS/libcurl.a \
+	-library $ARCHIVE/lib/iOS-simulator/libcurl.a \
+	-output $ARCHIVE/xcframework/libcurl.xcframework
+xcodebuild -create-xcframework \
+	-library $ARCHIVE/lib/iOS/libcrypto.a \
+	-library $ARCHIVE/lib/iOS-simulator/libcrypto.a \
+	-output $ARCHIVE/xcframework/libcrypto.xcframework
+xcodebuild -create-xcframework \
+	-library $ARCHIVE/lib/iOS/libssl.a \
+	-library $ARCHIVE/lib/iOS-simulator/libssl.a \
+	-output $ARCHIVE/xcframework/libssl.xcframework
 
 cp openssl/*.a $ARCHIVE/framework
 
@@ -307,26 +235,11 @@ if [ "$buildnghttp2" != "" ]; then
 	cp nghttp2/lib/libnghttp2_iOS.a $ARCHIVE/lib/iOS/libnghttp2.a
 	cp nghttp2/lib/libnghttp2_iOS-simulator.a $ARCHIVE/lib/iOS-simulator/libnghttp2.a
 	cp nghttp2/lib/libnghttp2_iOS-fat.a $ARCHIVE/lib/iOS-fat/libnghttp2.a
-	cp nghttp2/lib/libnghttp2_tvOS.a $ARCHIVE/lib/tvOS/libnghttp2.a
-	cp nghttp2/lib/libnghttp2_tvOS-simulator.a $ARCHIVE/lib/tvOS-simulator/libnghttp2.a
 	cp nghttp2/lib/libnghttp2_Mac.a $ARCHIVE/lib/MacOS/libnghttp2.a
-	if [ "$catalyst" == "-m" ]; then
-		cp nghttp2/lib/libnghttp2_Catalyst.a $ARCHIVE/lib/Catalyst/libnghttp2.a
-		xcodebuild -create-xcframework \
-			-library $ARCHIVE/lib/iOS/libnghttp2.a \
-			-library $ARCHIVE/lib/iOS-simulator/libnghttp2.a \
-			-library $ARCHIVE/lib/tvOS/libnghttp2.a \
-			-library $ARCHIVE/lib/tvOS-simulator/libnghttp2.a \
-			-library $ARCHIVE/lib/Catalyst/libnghttp2.a \
-			-output $ARCHIVE/xcframework/libnghttp2.xcframework
-	else
-		xcodebuild -create-xcframework \
-			-library $ARCHIVE/lib/iOS/libnghttp2.a \
-			-library $ARCHIVE/lib/iOS-simulator/libnghttp2.a \
-			-library $ARCHIVE/lib/tvOS/libnghttp2.a \
-			-library $ARCHIVE/lib/tvOS-simulator/libnghttp2.a \
-			-output $ARCHIVE/xcframework/libnghttp2.xcframework
-	fi
+	xcodebuild -create-xcframework \
+		-library $ARCHIVE/lib/iOS/libnghttp2.a \
+		-library $ARCHIVE/lib/iOS-simulator/libnghttp2.a \
+		-output $ARCHIVE/xcframework/libnghttp2.xcframework
 fi
 
 # archive header files
@@ -354,19 +267,8 @@ cp -R $ARCHIVE/xcframework/libcrypto.xcframework "$EXAMPLE/libs/"
 cp -R $ARCHIVE/xcframework/libssl.xcframework "$EXAMPLE/libs/"
 cp -R $ARCHIVE/xcframework/libcurl.xcframework "$EXAMPLE/libs/"
 if [ "$buildnghttp2" != "" ]; then
-	#cp nghttp2/lib/libnghttp2_iOS-fat.a "$EXAMPLE/libs/libnghttp2.a"
 	cp -R $ARCHIVE/xcframework/libnghttp2.xcframework "$EXAMPLE/libs/"
 fi
-#cp openssl/iOS-fat/lib/libcrypto.a "$EXAMPLE/libs/libcrypto.a"
-#cp openssl/iOS-fat/lib/libssl.a "$EXAMPLE/libs/libssl.a"
-#cp curl/lib/libcurl_iOS-fat.a "$EXAMPLE/libs/libcurl.a"
-# if [ "$catalyst" == "-m" ]; then
-# 	cp openssl/openssl-ios-x86_64-maccatalyst.a "$EXAMPLE/libs/openssl-ios-x86_64-maccatalyst.a"
-# 	cp curl/lib/libcurl_Catalyst.a "$EXAMPLE/libs/libcurl_Catalyst.a"
-# 	if [ "$buildnghttp2" != "" ]; then
-# 		cp nghttp2/lib/libnghttp2_Catalyst.a "$EXAMPLE/libs/libnghttp2_Catalyst.a"
-# 	fi
-# fi
 
 echo
 # create universal Mac binaries and run test

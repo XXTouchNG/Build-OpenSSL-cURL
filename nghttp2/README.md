@@ -1,6 +1,6 @@
-# Build nghttp2  
+# Build nghttp2
 
-Build nghttp2 for MacOS, Mac Catalyst, iOS and tvOS with Bitcode enabled for iOS, tvOS. 
+Build nghttp2 for MacOS and iOS
 
 ## Build
 The `nghttp2-build.sh` script attempts to pull down and build nghttp2.
@@ -45,4 +45,4 @@ sudo make install
    https://nghttp2.org https://github.com/nghttp2
  Jason Cox, @jasonacox
    https://github.com/jasonacox/Build-OpenSSL-cURL
- 
+

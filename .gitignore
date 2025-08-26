@@ -1,5 +1,6 @@
 # Compiled source #
 ###################
+*.a
 *.o
 *.so
 
@@ -55,3 +56,12 @@ openssl-ios-x86_64-maccatalyst.a
 releases
 sandbox/
 example/iOS\ Test\ App/libs/
+curl/include/
+nghttp2/Mac/
+nghttp2/iOS-simulator/
+nghttp2/iOS/
+nghttp2/nghttp2-1.46.0/
+openssl/Mac/
+openssl/iOS-fat/
+openssl/iOS-simulator/
+openssl/iOS/

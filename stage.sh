@@ -51,13 +51,13 @@ while getopts "o:ncduth\?" o; do
 	case "${o}" in
 		o)
 			# archive openssl binaries
-			tar -zcvf "openssl-$OPTARG.tgz" openssl/Mac openssl/Catalyst openssl/iOS* openssl/tvOS 
+			tar -zcvf "openssl-$OPTARG.tgz" openssl/Mac openssl/iOS*
 			aws s3 cp "openssl-$OPTARG.tgz" s3://jasonacox.com.travis-build-stage-storage/
 			aws s3 ls jasonacox.com.travis-build-stage-storage
 			;;
 		n)
 			# archive nghttp2 binaries
-			tar -zcvf "nghttp2.tgz" nghttp2/Catalyst nghttp2/iOS* nghttp2/tvOS nghttp2/lib 
+			tar -zcvf "nghttp2.tgz" nghttp2/iOS* nghttp2/lib
 			aws s3 cp "nghttp2.tgz" s3://jasonacox.com.travis-build-stage-storage/
 			aws s3 ls jasonacox.com.travis-build-stage-storage
 			;;
@@ -66,7 +66,7 @@ while getopts "o:ncduth\?" o; do
 			tar -zcvf "curl.tgz" curl/lib curl/include
 			aws s3 cp "curl.tgz" s3://jasonacox.com.travis-build-stage-storage/
 			aws s3 ls jasonacox.com.travis-build-stage-storage
-			;;	
+			;;
 		d)
 			# download openssl and nghttp2 binaries
 			aws s3 cp s3://jasonacox.com.travis-build-stage-storage/openssl-1.tgz .
