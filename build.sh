@@ -22,7 +22,7 @@ BUILD_MACHINE=`uname -m`
 # Set minimum OS versions for target
 MACOS_X86_64_VERSION="12.0"			# Empty = use host version
 MACOS_ARM64_VERSION="12.0"			# Min supported is MacOS 11.0 Big Sur
-IOS_MIN_SDK_VERSION="15.0"
+IOS_MIN_SDK_VERSION="14.0"
 
 # Semantic Version Comparison
 version_lte() {
